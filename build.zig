@@ -1,17 +1,94 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+const ThisBuild = @This();
 
+pub const Options = struct {
+    /// The target architecture for which the module will be built.
+    target: ?std.Build.ResolvedTarget = null,
+    /// The optimization mode used to compile the module.
+    optimize: ?std.builtin.OptimizeMode = null,
+    /// Shared `math` module instance. When `null`, it is resolved via
+    /// `b.dependency("math", ...)` (own build) or via the parent's
+    /// `dependencyFromBuildZig` graph (parent build). Pass an explicit
+    /// module from the final project to guarantee a single `math`
+    /// instance across `core` and all other packages — this avoids
+    /// "repeated import" type conflicts (`math.Vec` from two instances
+    /// are different types).
+    dependency_math: ?*std.Build.Module = null,
+
+    pub fn initFromOptions(b: *std.Build) Options {
+        return .{
+            .target = b.standardTargetOptions(.{}),
+            .optimize = b.standardOptimizeOption(.{}),
+            // `dependency_*` cannot come from `-D` flags; they stay null
+            // here and are resolved via `b.dependency` in the helpers below.
+        };
+    }
+
+    /// Create the `core` module in the caller's build graph.
+    ///
+    /// Intended for parent packages that want a single shared instance:
+    /// ```zig
+    /// const math_mod = (@import("math").Options{
+    ///     .target = target,
+    ///     .optimize = optimize,
+    /// }).getModule(b);
+    /// const core_mod = (@import("core").Options{
+    ///     .target = target,
+    ///     .optimize = optimize,
+    ///     .dependency_math = math_mod,
+    /// }).getModule(b);
+    /// ```
+    /// Missing `dependency_*` modules fall back to this package's own
+    /// dependency graph (`dependencyFromBuildZig` + child builder), so the
+    /// call also works without explicit modules — but then deduplication
+    /// relies on Zig's global dependency cache (same target/optimize).
+    pub fn getModule(self: Options, b: *std.Build) *std.Build.Module {
+        const target = self.target orelse b.standardTargetOptions(.{});
+        const optimize = self.optimize orelse b.standardOptimizeOption(.{});
+        const self_dep = b.dependencyFromBuildZig(ThisBuild, .{
+            .target = target,
+            .optimize = optimize,
+        });
+        const math_mod = self.dependency_math orelse self_dep.builder.dependency("math", .{
+            .target = target,
+            .optimize = optimize,
+        }).module("math");
+        const mod = b.createModule(.{
+            .root_source_file = self_dep.path("src/root.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        mod.addImport("math", math_mod);
+        return mod;
+    }
+};
+
+/// Create the `core` module in the *own* package graph (standalone `zig build`).
+/// Same wiring as `Options.getModule` but uses `b.path`/`b.dependency`
+/// (valid only for own build).
+fn createModuleOwn(b: *std.Build, options: Options) *std.Build.Module {
+    const target = options.target orelse b.standardTargetOptions(.{});
+    const optimize = options.optimize orelse b.standardOptimizeOption(.{});
+    const math_mod = options.dependency_math orelse b.dependency("math", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("math");
     const mod = b.addModule("core", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .optimize = optimize,
     });
-
-    const math_dep = b.dependency("math", .{ .target = target });
-    const math_mod = math_dep.module("math");
     mod.addImport("math", math_mod);
+    return mod;
+}
+
+pub fn build(b: *std.Build) void {
+    const options = Options.initFromOptions(b);
+    const target = options.target orelse b.standardTargetOptions(.{});
+    const optimize = options.optimize orelse b.standardOptimizeOption(.{});
+
+    const mod = createModuleOwn(b, options);
 
     const exe = b.addExecutable(.{
         .name = "core",
@@ -53,5 +130,4 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
-
 }
