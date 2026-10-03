@@ -60,7 +60,7 @@ test "transform ecs basic" {
 
     // Explicit parent rotation: parent yawed +90 deg about Y turns child forward (-Z) into (-X).
     var yawed = T.identity();
-    yawed.rotation = math.quat.angleAxis(@as(f32, std.math.pi) / @as(f32, 2), V3.unit(1));
+    yawed.rotation = math.quat.angleAxisRad(@as(f32, std.math.pi) / @as(f32, 2), V3.unit(1));
     const yawed_world = yawed.toMatrix();
     const fwd = T.identity().forwardWorld(yawed_world);
     try std.testing.expectApproxEqAbs(@as(f32, -1), fwd.v[0], 1e-5);

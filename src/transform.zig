@@ -222,11 +222,11 @@ pub fn Transform(comptime scalar_type_: type) type {
                 var axis = Vec3.unit(0);
                 if (a.dot(axis) > 0.99) axis = Vec3.unit(1);
                 axis = a.cross(axis).normalize();
-                return math.quat.angleAxis(@as(Scalar, std.math.pi), axis);
+                return math.quat.angleAxisRad(@as(Scalar, std.math.pi), axis);
             }
             const axis = a.cross(b).normalize();
             const angle = math.scalar.acos(math.scalar.clamp(d, @as(Scalar, -1), @as(Scalar, 1)));
-            return math.quat.angleAxis(angle, axis);
+            return math.quat.angleAxisRad(angle, axis);
         }
 
         /// Sets local rotation so that an arbitrary local axis aligns with
@@ -531,8 +531,17 @@ pub fn Transform(comptime scalar_type_: type) type {
         /// Parameters:
         /// - `self` — pointer to the transform.
         /// - `euler` — Euler angles (radians) per axis.
-        pub fn rotate(self: *Self, euler: Vec3) void {
-            self.rotation = self.rotation.mul(QuatT.fromEuler(euler)).normalize();
+        pub fn rotateRad(self: *Self, euler: Vec3) void {
+            self.rotation = self.rotation.mul(QuatT.fromEulerRad(euler)).normalize();
+        }
+
+        /// Rotates the transform by Euler angles in local space.
+        ///
+        /// Parameters:
+        /// - `self` — pointer to the transform.
+        /// - `euler` — Euler angles (degrees) per axis.
+        pub fn rotateDeg(self: *Self, euler: Vec3) void {
+            self.rotateRad(euler.radians());
         }
 
         /// Rotates the transform around a point in the same space as `position`.
@@ -542,11 +551,22 @@ pub fn Transform(comptime scalar_type_: type) type {
         /// - `point` — center point of rotation.
         /// - `axis` — rotation axis.
         /// - `angle` — rotation angle in radians.
-        pub fn rotateAround(self: *Self, point: Vec3, axis: Vec3, angle: Scalar) void {
-            const q = math.quat.angleAxis(angle, safeNormalize(axis));
+        pub fn rotateAroundRad(self: *Self, point: Vec3, axis: Vec3, angle: Scalar) void {
+            const q = math.quat.angleAxisRad(angle, safeNormalize(axis));
             const dif = q.mulVec3(self.position.sub(point));
             self.position = point.add(dif);
             self.rotation = q.mul(self.rotation).normalize();
+        }
+
+        /// Rotates the transform around a point in the same space as `position`.
+        ///
+        /// Parameters:
+        /// - `self` — pointer to the transform.
+        /// - `point` — center point of rotation.
+        /// - `axis` — rotation axis.
+        /// - `angle` — rotation angle in degrees.
+        pub fn rotateAroundDeg(self: *Self, point: Vec3, axis: Vec3, angle: Scalar) void {
+            self.rotateAroundRad(point, axis, math.scalar.radians(angle));
         }
 
         /// Transforms a point from local space with scale and translation.
