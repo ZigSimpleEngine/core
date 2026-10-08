@@ -2,7 +2,7 @@
     .name = .core,
     .version = "0.0.0",
     .fingerprint = 0x6b8d854f91ed9aff,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .math = .{ .path = "../math" },
     },
