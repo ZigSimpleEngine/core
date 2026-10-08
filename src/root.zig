@@ -16,6 +16,12 @@ pub const Map = @import("map.zig").Map;
 /// Re-export of math library for convenience of `core` consumers.
 pub const math = @import("math");
 
+/// Prints a second greeting line for the demo entry point (`src/main.zig`).
+/// - `writer` - any writer exposing `print` (e.g. `*std.Io.Writer`).
+pub fn printAnotherMessage(writer: anytype) !void {
+    try writer.print("All your messages are belong to us.\n", .{});
+}
+
 test {
     std.testing.refAllDecls(@This());
 }
